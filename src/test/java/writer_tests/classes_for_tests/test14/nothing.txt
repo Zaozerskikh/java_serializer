@@ -1,1 +1,0 @@
-There are no classes for this test. This test checks null-object serialization.

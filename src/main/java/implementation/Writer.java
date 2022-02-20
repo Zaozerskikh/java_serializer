@@ -25,7 +25,7 @@ public class Writer {
     private static Writer INSTANCE;
 
     /**
-     * Getter, инициализирующий writer лишь единожды, и возвращающий его в дальнейшем.
+     * Getter, инициализирующий Writer лишь единожды, и возвращающий его в дальнейшем.
      */
     public static Writer getWriter() {
         if (INSTANCE == null) {
@@ -35,16 +35,24 @@ public class Writer {
     }
 
     /**
+     * Обертка приватного метода write(Object obj, StringBuilder sb, String fieldName),
+     * выполняющий роль фасада и отсекающий лишние символы в конце строки.
+     * @param obj объект который необходимо записать в строку.
+     * @return сериализованный в виде строки объект.
+     */
+    public String write(Object obj) {
+        String output = write(obj, new StringBuilder(), null);
+        return output.substring(0, output.length() - 2);
+    }
+
+    /**
      * Записть объекта в строку.
      * @param obj записываемый объект
      * @param sb stringBuilder для записи объекта.
      * @param fieldName имя поля, в котором лежит объект (если null, то объект является корнем).
      * @return Строка, содержащая строковое представление объекта.
      */
-    public String write(Object obj, StringBuilder sb, String fieldName) {
-        if (fieldName == null && obj == null) {
-            return "{}";
-        }
+    private String write(Object obj, StringBuilder sb, String fieldName) {
         if (fieldName != null) {
             sb.append(fieldName).append(" = \"");
         }
@@ -80,6 +88,8 @@ public class Writer {
                 .filter(x -> Validator.checkType(x.getType()))
                 .filter(x -> Arrays.stream(x.getDeclaredAnnotations())
                         .noneMatch(y -> y.annotationType() == Ignored.class));
+
+        // Проверка на включение/исключение null полей.
         if (obj.getClass().getAnnotation(Exported.class).nullHandling() == NullHandling.EXCLUDE) {
             return fields.filter(x -> {
                 try {
@@ -101,12 +111,14 @@ public class Writer {
      * @param sb stringBuilder для записи в него информации.
      */
     private void simpleTypeWrite(Field field, Object obj, StringBuilder sb) {
-        field.setAccessible(true);
+        // Проверка аннотации PropertyName и запись ключа.
         if (Arrays.stream(field.getDeclaredAnnotations()).anyMatch(x -> x.annotationType() == PropertyName.class)) {
             sb.append(field.getDeclaredAnnotation(PropertyName.class).value()).append(" ");
         } else {
             sb.append(field.getName()).append(" ");
         }
+
+        // Запись значения.
         try {
             if (field.getType() == LocalDate.class) {
                 sb.append("= \"").append(formatDate(obj, field)).append("\"; ");
@@ -125,11 +137,14 @@ public class Writer {
      * @param sb stringBuilder для записи в него информации.
      */
     private void collectionWrite(Field list, Object obj, StringBuilder sb) {
+        // Проверка аннотации PropertyName и запись ключа.
         if (Arrays.stream(list.getDeclaredAnnotations()).anyMatch(x -> x.annotationType() == PropertyName.class)) {
             sb.append(list.getDeclaredAnnotation(PropertyName.class).value());
         } else {
             sb.append(list.getName());
         }
+
+        // Запись значения.
         sb.append(" = [ ");
         try {
             if (Validator.getTypeParam(list).getClassLoader() == null) {

@@ -2,16 +2,30 @@ package implementation;
 
 import ru.hse.homework4.Ignored;
 import ru.hse.homework4.PropertyName;
-
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Stream;
 
+/**
+ * Класс, реализующий механику чтения строки сериализованного объекта
+ * и преобразования ее обратно в объект.
+ */
 public class Reader {
+    /**
+     * Простейшая реализация синглтона.
+     * Приватный конструктор.
+     */
     private Reader() { }
 
+    /**
+     * Объект класса Writer для реализации синглтона.
+     */
     private static Reader INSTANCE;
 
+    /**
+     * Getter, инициализирующий Reader лишь единожды, и возвращающий его в дальнейшем.
+     */
     public static Reader getReader() {
         if (INSTANCE == null) {
             INSTANCE = new Reader();
@@ -20,28 +34,32 @@ public class Reader {
     }
 
     public <T> T readFromString(Class<T> clazz, String input) {
-        T outputObj;
-        Map<String, Object> fields = new HashMap<>();
-        int idx = 1;
-        while (input.charAt(idx) != '}') {
-            StringBuilder currFieldName = new StringBuilder();
-            while (input.charAt(idx) != ' ') {
-                currFieldName.append(input.charAt(idx++));
-            }
-            idx += 4;
-            if (input.charAt(idx) != '{' && input.charAt(idx) != '[') {
-                StringBuilder currFieldValue = new StringBuilder();
-                while ((input.charAt(idx) != '"')){
-                    currFieldValue.append(input.charAt(idx++));
-                }
-                idx += 3;
-                fields.put(currFieldName.toString(), currFieldValue.toString());
-            } else if (input.charAt(idx) == '{') {
-                fields.put(currFieldName.toString(), readFromString(getFieldByKey(clazz, currFieldName.toString()).getType(), input.substring(idx)));
-                idx += getIdxShift(input.substring(idx));
-            }
-        }
         try {
+            T outputObj;
+            Map<String, Object> fields = new HashMap<>();
+            int idx = 1;
+            while (input.charAt(idx) != '}') {
+                StringBuilder currFieldName = new StringBuilder();
+                while (input.charAt(idx) != ' ') {
+                    currFieldName.append(input.charAt(idx++));
+                }
+                idx += 4;
+                if (input.charAt(idx) != '{' && input.charAt(idx) != '[') {
+                    StringBuilder currFieldValue = new StringBuilder();
+                    while ((input.charAt(idx) != '"')){
+                        currFieldValue.append(input.charAt(idx++));
+                    }
+                    idx += 3;
+                    fields.put(currFieldName.toString(), currFieldValue.toString());
+                } else if (input.charAt(idx) == '{') {
+                    if (idx + 1 != '}') {
+                        fields.put(currFieldName.toString(), readFromString(getFieldByKey(clazz, currFieldName.toString()).getType(), input.substring(idx)));
+                    } else {
+                        fields.put(currFieldName.toString(), null);
+                    }
+                    idx += getIdxShift(input.substring(idx));
+                }
+            }
             outputObj = clazz.getConstructor().newInstance();
             getNotIgnoredFields(clazz).forEach(x -> {
                 x.setAccessible(true);
@@ -55,9 +73,8 @@ public class Reader {
             });
             return outputObj;
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new UnsupportedOperationException();
         }
-        return null;
     }
 
     private Stream<Field> getNotIgnoredFields(Class<?> clazz) {
@@ -68,9 +85,12 @@ public class Reader {
     }
 
     private void setSimpleValToField(Object target, Map<String, Object> fields, Field field) {
-        var key = getFieldKey(field);
+        String key = getFieldKey(field);
         try {
-            if (field.getType() == int.class || field.getType() == Integer.class) {
+            if (fields.get(key).toString().equals("null")) {
+                field.set(target, null);
+                return;
+            } if (field.getType() == int.class || field.getType() == Integer.class) {
                 field.set(target, Integer.parseInt(fields.get(key).toString()));
             } else if (field.getType() == byte.class || field.getType() == Byte.class) {
                 field.set(target, Byte.parseByte(fields.get(key).toString()));
@@ -88,6 +108,8 @@ public class Reader {
                 field.set(target, (fields.get(key)).toString().charAt(0));
             } else if (field.getType() == String.class) {
                 field.set(target, (fields.get(key)));
+            } else if (field.getType() == LocalDate.class) {
+                field.set(target, LocalDate.parse(formatData(fields.get(key).toString())));
             }
         } catch (IllegalAccessException e) {
             throw new UnsupportedOperationException("unable to desrialize object");
@@ -95,9 +117,8 @@ public class Reader {
     }
 
     private void setCustomValToField(Object target, Map<String, Object> fields, Field field) {
-        var key = getFieldKey(field);
         try {
-            field.set(target, fields.get(key));
+            field.set(target, fields.get(getFieldKey(field)));
         } catch (IllegalAccessException e) {
             throw new UnsupportedOperationException("unable to desrialize object");
         }
@@ -117,6 +138,16 @@ public class Reader {
                 .filter(x -> x.getName().equals(key) || Arrays.stream(x.getDeclaredAnnotations())
                         .anyMatch(y -> y.annotationType() == PropertyName.class) &&
                         x.getDeclaredAnnotation(PropertyName.class).value().equals(key)).toList().get(0);
+    }
+
+    private String formatData(String data) {
+        var newData = data.split("-");
+        if (newData[0].length() == 2) {
+            var temp = newData[0];
+            newData[0] = newData[2];
+            newData[2] = temp;
+        }
+        return newData[0] + "-" + newData[1] + "-" + newData[2];
     }
 
     private int getIdxShift(String inputStr) {

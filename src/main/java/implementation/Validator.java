@@ -13,18 +13,30 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Утилитный класс, который проверяет, возможно ли сериализовать инстанс класса или нет.
+ * Утилитный класс, который проверяет, возможно ли сериализовать объект класса /
+ * десериализовать строку в объект указанного класса или нет.
  */
 public class Validator {
 
     /**
+     * Проверка сериализуемого объекта на null.
+     * @param obj сериализуемый объект.
+     */
+    public static void validateObject(Object obj) {
+        if (obj == null) {
+            throw new UnsupportedOperationException("Unable to serialize null object");
+        }
+        validateClass(obj.getClass());
+    }
+
+    /**
      * Обертка над методом validateClass(Class<?> clazz) которая отлавливает циклические ссылки.
      * @param clazz проверяемый класс.
-     * @throws UnsupportedOperationException если класс не может быть сериализован.
+     * @throws UnsupportedOperationException если класс не может быть сериализован/десериализован.
      */
-    public static void validate(Class<?> clazz) throws UnsupportedOperationException {
+    public static void validateClass(Class<?> clazz) throws UnsupportedOperationException {
         try {
-            validateClass(clazz);
+            validate(clazz);
         } catch (StackOverflowError error) {
             throw new UnsupportedOperationException("Cyclic references found");
         }
@@ -35,14 +47,14 @@ public class Validator {
      * @param clazz проверяемый класс.
      * @throws UnsupportedOperationException если инстанс класса не может быть сериализован.
      */
-    private static void validateClass(Class<?> clazz) throws UnsupportedOperationException {
+    private static void validate(Class<?> clazz) throws UnsupportedOperationException {
         // Проверка на аннотацию Exported.
         if (Arrays.stream(clazz.getDeclaredAnnotations()).noneMatch(x -> x.annotationType() == Exported.class)) {
             throw new UnsupportedOperationException("Class " + clazz.getSimpleName() + " not annotated \"@Exported\"");
         }
 
         // Проверка на отсутствие наследования.
-        if (!clazz.getSuperclass().equals(Object.class)) {
+        if (clazz.getSuperclass() != Object.class) {
             throw new UnsupportedOperationException("Non Object superclass detected in class: \"" + clazz.getSimpleName() + "\"");
         }
 
@@ -64,11 +76,12 @@ public class Validator {
         Arrays.stream(clazz.getDeclaredFields())
                 .filter(x -> (x.getType() == List.class || x.getType() == Set.class))
                 .filter(Validator::isFieldNotIgnored).forEach(x -> {
-            if (clazz.getAnnotation(Exported.class).unknownPropertiesPolicy() == UnknownPropertiesPolicy.FAIL && !checkListsAndSets(x)) {
-                throw new UnsupportedOperationException("Unknown generic type in field \"" + x.getName() + "\" in class: \"" + clazz.getSimpleName() + "\"");
+            if (clazz.getAnnotation(Exported.class).unknownPropertiesPolicy() ==UnknownPropertiesPolicy.FAIL && !checkListsAndSets(x)) {
+                throw new UnsupportedOperationException("Unknown generic type in field \""
+                        + x.getName() + "\" in class: \"" + clazz.getSimpleName() + "\"");
             } else if (checkListsAndSets(x) && getTypeParam(x).getClassLoader() != null) {
                 // Рекурсивная валидация дженерик типа.
-                validateClass(getTypeParam(x));
+                validate(getTypeParam(x));
             }
         });
 
@@ -76,7 +89,7 @@ public class Validator {
         Arrays.stream(clazz.getDeclaredFields())
                 .filter(x -> x.getType().getClassLoader() != null)
                 .filter(Validator::isFieldNotIgnored)
-                .forEach(x -> validateClass(x.getType()));
+                .forEach(x -> validate(x.getType()));
     }
 
     /**
@@ -127,6 +140,6 @@ public class Validator {
      */
     private static boolean isFieldNotIgnored(Field field) {
         return Arrays.stream(field.getDeclaredAnnotations())
-                .noneMatch(x->x.annotationType() == Ignored.class);
+                .noneMatch(x -> x.annotationType() == Ignored.class);
     }
 }
