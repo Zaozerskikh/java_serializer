@@ -5,6 +5,7 @@ import ru.hse.homework4.*;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -41,10 +42,16 @@ public class Writer {
      * @return Строка, содержащая строковое представление объекта.
      */
     public String write(Object obj, StringBuilder sb, String fieldName) {
+        if (fieldName == null && obj == null) {
+            return "{}";
+        }
         if (fieldName != null) {
             sb.append(fieldName).append(" = \"");
         }
         sb.append("{");
+        if (obj == null) {
+            return sb.append("}\"; ").toString();
+        }
         getActualFields(obj).forEach(x -> {
             try {
                 x.setAccessible(true);
@@ -66,7 +73,7 @@ public class Writer {
     /**
      * Получение актуальных полей объекта (not ingnored и, если требуется, not null).
      * @param obj объект, из которого надо вытащить поля.
-     * @return поток искомых полей оьъекта.
+     * @return поток искомых полей объекта.
      */
     private List<Field> getActualFields(Object obj) {
         var fields = Arrays.stream(obj.getClass().getDeclaredFields())
@@ -91,7 +98,7 @@ public class Writer {
      * Запись в строку объекта простого типа (примитивы и их врапперы, строки, даты, время).
      * @param field поле в котором содержится объект.
      * @param obj объект-родитель, в котором это поле находится.
-     * @param sb стрингбилдер для записи в него информации.
+     * @param sb stringBuilder для записи в него информации.
      */
     private void simpleTypeWrite(Field field, Object obj, StringBuilder sb) {
         field.setAccessible(true);
@@ -115,29 +122,46 @@ public class Writer {
      * Запись в строку объекта типа коллекции (List, Set).
      * @param list поле, в котором содержится коллекция.
      * @param obj объект-родитель, в котором это поле находится.
-     * @param sb стрингбилдер для записи в него информации.
+     * @param sb stringBuilder для записи в него информации.
      */
     private void collectionWrite(Field list, Object obj, StringBuilder sb) {
-        if (Validator.getTypeParam(list).getClassLoader() == null) {
-            simpleTypeWrite(list, obj, sb);
+        if (Arrays.stream(list.getDeclaredAnnotations()).anyMatch(x -> x.annotationType() == PropertyName.class)) {
+            sb.append(list.getDeclaredAnnotation(PropertyName.class).value());
         } else {
-            if (Arrays.stream(list.getDeclaredAnnotations()).anyMatch(x -> x.annotationType() == PropertyName.class)) {
-                sb.append(list.getDeclaredAnnotation(PropertyName.class).value());
-            } else {
-                sb.append(list.getName());
-            }
-            sb.append(list.getName()).append(" = [");
-            try {
-                if (list.getType() == List.class) {
-                    listCast(list.get(obj)).forEach(x -> write(x, sb, null));
-                } else {
-                    setCast(list.get(obj)).forEach(x -> write(x, sb, null));
-                }
-            } catch (IllegalAccessException e) {
-                throw new UnsupportedOperationException("Unable to serialize object");
-            }
-            sb.append("]");
+            sb.append(list.getName());
         }
+        sb.append(" = [ ");
+        try {
+            if (Validator.getTypeParam(list).getClassLoader() == null) {
+                simpleTypeCollectionWrite(list, sb, obj);
+            } else {
+                collectionCast(list.get(obj)).forEach(x -> write(x, sb, null));
+            }
+        } catch (IllegalAccessException e) {
+            throw new UnsupportedOperationException("Unable to serialize object");
+        }
+        sb.append("]; ");
+    }
+
+    /**
+     * Запись в строку коллекции (List, Set) обобщенной примитивным типом или его враппером или строкой или датой/временем.
+     * @param field поле где лежит коллекция.
+     * @param sb stringBuilder куда происходит запись.
+     * @param obj объект в котором лежит поле с коллекцией.
+     * @throws IllegalAccessException если не удается прочитать коллекцию из поля.
+     */
+    private void simpleTypeCollectionWrite(Field field, StringBuilder sb, Object obj) throws IllegalAccessException {
+        var collection = collectionCast(field.get(obj));
+        collection.forEach(x -> {
+            if (x.getClass() == LocalDate.class &&
+                    Arrays.stream(field.getDeclaredAnnotations()).anyMatch(y ->y.annotationType() == DateFormat.class) &&
+                    field.getDeclaredAnnotation(DateFormat.class).dateFormat() == DateEnum.DD_MM_YYYY) {
+                sb.append(reverseDate(x.toString()));
+            } else {
+                sb.append(x);
+            }
+            sb.append("; ");
+        });
     }
 
     /**
@@ -148,39 +172,36 @@ public class Writer {
      * @throws IllegalAccessException если произошла ошибка считывания данных из поля.
      */
     private String formatDate(Object obj, Field field) throws IllegalAccessException {
-        String date = field.get(obj).toString();
-        var newDate = date.split("-");
         if (Arrays.stream(field.getDeclaredAnnotations()).anyMatch(x ->x.annotationType() == DateFormat.class)) {
             if (field.getDeclaredAnnotation(DateFormat.class).dateFormat() == DateEnum.DD_MM_YYYY) {
-                var tmp = newDate[0];
-                newDate[0] = newDate[2];
-                newDate[2] = tmp;
+                return reverseDate(field.get(obj).toString());
             }
         }
+        return field.get(obj).toString();
+    }
+
+    /**
+     * Меняет местами день и год в строке с датой.
+     * @param currDate дата.
+     * @return дата после свопа дня и года.
+     */
+    private String reverseDate(String currDate) {
+        var newDate = currDate.split("-");
+        var tmp = newDate[0];
+        newDate[0] = newDate[2];
+        newDate[2] = tmp;
         return newDate[0] + "-" + newDate[1] + "-" + newDate[2];
     }
 
     /**
-     * Каст объекта к листу.
+     * Каст объекта к коллекции.
      * @param obj объект.
-     * @param <T> лист.
-     * @return лист.
-     * unchecked каст не вызывает исключения т.к данный метод вызывается только для объектов типа  List<?>.
+     * @param <T> интерфейс коллекции.
+     * @return коллекция.
+     * unchecked каст не вызывает исключения т.к данный метод вызывается только для объектов типа  List<?> или Set<?>.
      */
     @SuppressWarnings("unchecked")
-    private  <T extends List<?>> T listCast(Object obj) {
-        return (T)obj;
-    }
-
-    /**
-     * Каст объекта к сету.
-     * @param obj объект.
-     * @param <T> сет.
-     * @return сет.
-     * unchecked каст не вызывает исключения т.к данный метод вызывается только для объектов типа  Set<?>.
-     */
-    @SuppressWarnings("unchecked")
-    private  <T extends Set<?>> T setCast(Object obj) {
+    private  <T extends Collection<?>> T collectionCast(Object obj) {
         return (T)obj;
     }
 }
