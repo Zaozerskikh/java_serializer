@@ -71,25 +71,25 @@ public class WriterTest {
     @Test
     public void testSimpleList() {
         assertEquals(Writer.getWriter().write(new Person9()),
-                "{list = [ 1; 2; ]; }");
+                "{list = \"[ \"1\"; \"2\"; ]\"; }");
     }
 
     @Test
     public void testSimpleSet() {
         assertEquals(Writer.getWriter().write(new Person10()),
-                "{set = [ 1.3; 0.7; ]; }");
+                "{set = \"[ \"1.3\"; \"0.7\"; ]\"; }");
     }
 
     @Test
     public void testComplexList() {
         assertEquals(Writer.getWriter().write(new Person11()),
-                "{name = \"Sergey\"; petList = [ {name = \"first_name\"; }; {name = \"second_name\"; }; ]; }");
+                "{name = \"Sergey\"; petList = \"[ {name = \"first_name\"; }; {name = \"second_name\"; }; ]\"; }");
     }
 
     @Test
     public void testComplexSet() {
         assertEquals(Writer.getWriter().write(new Person12()),
-                "{name = \"Sergey\"; laptopSet = [ {name = \"Macbook\"; cost = \"150.0\"; }; {name = \"Huawei\"; cost = \"55.0\"; }; ]; }");
+                "{name = \"Sergey\"; laptopSet = \"[ {name = \"Macbook\"; cost = \"150.0\"; }; {name = \"Huawei\"; cost = \"55.0\"; }; ]\"; }");
     }
 
     @Test

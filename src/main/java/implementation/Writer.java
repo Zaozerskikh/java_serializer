@@ -145,7 +145,7 @@ public class Writer {
         }
 
         // Запись значения.
-        sb.append(" = [ ");
+        sb.append(" = \"[ ");
         try {
             if (Validator.getTypeParam(list).getClassLoader() == null) {
                 simpleTypeCollectionWrite(list, sb, obj);
@@ -155,7 +155,7 @@ public class Writer {
         } catch (IllegalAccessException e) {
             throw new UnsupportedOperationException("Unable to serialize object");
         }
-        sb.append("]; ");
+        sb.append("]\"; ");
     }
 
     /**
@@ -168,6 +168,7 @@ public class Writer {
     private void simpleTypeCollectionWrite(Field field, StringBuilder sb, Object obj) throws IllegalAccessException {
         var collection = collectionCast(field.get(obj));
         collection.forEach(x -> {
+            sb.append("\"");
             if (x.getClass() == LocalDate.class &&
                     Arrays.stream(field.getDeclaredAnnotations()).anyMatch(y ->y.annotationType() == DateFormat.class) &&
                     field.getDeclaredAnnotation(DateFormat.class).dateFormat() == DateEnum.DD_MM_YYYY) {
@@ -175,7 +176,7 @@ public class Writer {
             } else {
                 sb.append(x);
             }
-            sb.append("; ");
+            sb.append("\"; ");
         });
     }
 
