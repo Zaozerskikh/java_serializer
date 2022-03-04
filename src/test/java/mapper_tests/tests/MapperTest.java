@@ -1,8 +1,8 @@
 package mapper_tests.tests;
 
 import implementation.Mapper;
-import mapper_tests.tests.classes_for_tests.BadPerson;
-import mapper_tests.tests.classes_for_tests.Person;
+import mapper_tests.classes_for_tests.BadPerson;
+import mapper_tests.classes_for_tests.Person;
 import org.junit.jupiter.api.*;
 import java.io.*;
 import java.nio.file.Path;

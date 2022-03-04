@@ -82,7 +82,7 @@ public class Mapper implements ru.hse.homework4.Mapper {
      * @param input строка, из которой надо считать объект.
      * @param <T> типизирующий параметр класса объекта.
      * @return десериализованный объект.
-     * @throws UnsupportedOperationException если десериализовать объект (ошибка валидации класса объекта).
+     * @throws UnsupportedOperationException если десериализовать объект невозможно (ошибка валидации класса объекта).
      * @throws IllegalArgumentException если входная строка некорректного формата.
      */
     @Override
@@ -96,9 +96,8 @@ public class Mapper implements ru.hse.homework4.Mapper {
                     // unchecked каст проходит всегда без ошибок, ведь в
                     // мапе хранится объект типа T по ключу input.
                     return (T) deserialized.get(input);
-                } else {
-                    deserialized.put(input, obj);
                 }
+                deserialized.put(input, obj);
             }
             return obj;
         } catch (IllegalArgumentException e) {
@@ -113,7 +112,7 @@ public class Mapper implements ru.hse.homework4.Mapper {
      * @param <T> типизирующий параметр класса объекта.
      * @return десериализованный объект.
      * @throws IOException если проблема с входным потоком.
-     * @throws UnsupportedOperationException если десериализовать объект (ошибка валидации класса объекта).
+     * @throws UnsupportedOperationException если десериализовать объект невозможно (ошибка валидации класса объекта).
      * @throws IllegalArgumentException если строка во входном потоке некорректного формата.
      */
     @Override
@@ -132,7 +131,7 @@ public class Mapper implements ru.hse.homework4.Mapper {
      * @param <T> типизирующий параметр класса объекта.
      * @return десериализованный объект.
      * @throws IOException если проблема с входным файлом.
-     * @throws UnsupportedOperationException если десериализовать объект (ошибка валидации класса объекта).
+     * @throws UnsupportedOperationException если десериализовать объект невозможно (ошибка валидации класса объекта).
      * @throws IllegalArgumentException если строка во входном файле некорректного формата.
      */
     @Override

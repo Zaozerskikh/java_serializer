@@ -1,4 +1,4 @@
-package mapper_tests.tests.classes_for_tests;
+package mapper_tests.classes_for_tests;
 
 import ru.hse.homework4.Exported;
 
